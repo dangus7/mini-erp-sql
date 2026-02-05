@@ -123,21 +123,31 @@ LEFT JOIN issued ON issued.product_id = p.product_id
 LEFT JOIN reval ON reval.product_id = p.product_id
 WHERE p.sku = 'SKU-CHAIR';
 
--- Q9: Show the difference between "naive" (incorrect) and compliant approach
--- Naive: spread delta across all receipts -> changes unit cost for already issued items.
--- Compliant: only affects current inventory; rest variance.
-SELECT 'Naive spreads to issued' AS approach,
-       ROUND((SUM(m.qty*m.unit_cost) + r.delta_total)/SUM(m.qty), 4) AS unit_cost
-FROM stock_moves m
-JOIN revaluations r ON r.product_id = m.product_id
-WHERE m.product_id = 1 AND m.qty > 0
+-- Q9 (fixed): Compare naive vs compliant unit cost adjustment
+-- Naive: spreads delta across ALL received units
+-- Compliant: allocates delta only to ON-HAND units; remainder is variance
+WITH receipt_qty AS (
+  SELECT SUM(qty) AS rq
+  FROM stock_moves
+  WHERE product_id = 1 AND qty > 0
+),
+onhand_qty AS (
+  SELECT SUM(qty) AS oh
+  FROM stock_moves
+  WHERE product_id = 1
+),
+reval AS (
+  SELECT SUM(delta_total) AS delta
+  FROM revaluations
+  WHERE product_id = 1
+),
+base_wac AS (
+  SELECT (SUM(qty * unit_cost) / SUM(qty)) AS wac
+  FROM stock_moves
+  WHERE product_id = 1 AND qty > 0
+)
+SELECT 'Naive (delta / receipts)' AS approach,
+       ROUND((SELECT wac FROM base_wac) + (SELECT delta FROM reval) * 1.0 / (SELECT rq FROM receipt_qty), 4) AS unit_cost
 UNION ALL
-SELECT 'Compliant: inventory-only' AS approach,
-       ROUND(
-         (SUM(m.qty*m.unit_cost) + (r.delta_total * ( (SELECT SUM(qty) FROM stock_moves WHERE product_id=1) * 1.0 / SUM(m.qty) )))
-         / (SELECT SUM(qty) FROM stock_moves WHERE product_id=1),
-         4
-       ) AS unit_cost
-FROM stock_moves m
-JOIN revaluations r ON r.product_id = m.product_id
-WHERE m.product_id = 1 AND m.qty > 0;
+SELECT 'Compliant (delta / on-hand)' AS approach,
+       ROUND((SELECT wac FROM base_wac) + (SELECT delta FROM reval) * 1.0 / (SELECT oh FROM onhand_qty), 4) AS unit_cost;
