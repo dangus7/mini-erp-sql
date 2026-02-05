@@ -1,0 +1,15 @@
+# Mini ERP (SQL) – Inventory + Invoicing + Average Cost
+
+Small portfolio project demonstrating ERP-style data modeling and SQL queries:
+- inventory movements (receipts/issues)
+- orders + invoices + payments
+- reporting queries (revenue, outstanding invoices, valuation)
+- average/weighted average cost examples
+
+## Files
+- schema.sql – tables
+- seed.sql – sample data
+- queries.sql – reporting queries (ERP/BI style)
+
+## Why this project
+Focus on practical ERP problems: totals, outstanding balances, inventory valuation and cost logic.
